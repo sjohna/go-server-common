@@ -1,5 +1,7 @@
 package repo
 
+import "github.com/sirupsen/logrus"
+
 func RepoFunctionLogger(log *logrus.Entry, repoFunction string) *logrus.Entry {
 	log = log.WithField("repo-function", repoFunction)
 	log.Info("Repo called")
