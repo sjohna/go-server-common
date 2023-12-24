@@ -43,6 +43,10 @@ func RespondInternalServerError(log *logrus.Entry, w http.ResponseWriter, err er
 	RespondError(log, w, err, 500)
 }
 
+func RespondClientError(log *logrus.Entry, w http.ResponseWriter, err error) {
+	RespondError(log, w, err, 400)
+}
+
 func RespondJSON(log *logrus.Entry, w http.ResponseWriter, value interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 
