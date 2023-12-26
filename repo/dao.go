@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"database/sql"
+	"github.com/sjohna/go-server-common/log"
 	"sync/atomic"
 
 	"github.com/jmoiron/sqlx"
@@ -10,7 +11,8 @@ import (
 )
 
 type DAO interface {
-	Logger() *logrus.Entry
+	Context() context.Context
+	Logger() log.Logger
 
 	Exec(query string, args ...interface{}) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
@@ -31,12 +33,14 @@ type DAO interface {
 
 type DBDAO struct {
 	sqlxer *sqlx.DB
-	logger *logrus.Entry
+	ctx    context.Context
+	logger log.Logger
 }
 
 type TxDAO struct {
 	sqlxer *sqlx.Tx
-	logger *logrus.Entry
+	ctx    context.Context
+	logger log.Logger
 }
 
 var daoIdCounter int64 = 0
@@ -45,7 +49,8 @@ func getNextDaoId() int64 {
 	return atomic.AddInt64(&daoIdCounter, 1)
 }
 
-func NewDBDAO(db *sqlx.DB, logger *logrus.Entry) *DBDAO {
+func NewDBDAO(db *sqlx.DB, ctx context.Context) *DBDAO {
+	logger := ctx.Value("logger").(log.Logger)
 	if db == nil {
 		logger.Fatal("db parameter not provided to NewDBDAO!")
 	}
@@ -54,24 +59,30 @@ func NewDBDAO(db *sqlx.DB, logger *logrus.Entry) *DBDAO {
 		logger.Fatal("logger parameter not provided to NewDBDAO!")
 	}
 
-	log := logger.WithFields(logrus.Fields{
+	DAOLogger := logger.WithFields(logrus.Fields{
 		"repo-dao-id": getNextDaoId(),
 	})
 
-	log.WithField("repo-dao-type", "non-tx").Info("DAO created")
+	DAOLogger.WithField("repo-dao-type", "non-tx").Info("DAO created")
+	DAOCtx := context.WithValue(ctx, "logger", DAOLogger)
 
 	return &DBDAO{
 		db,
-		log,
+		DAOCtx,
+		DAOLogger,
 	}
 }
 
-func (dao *DBDAO) Logger() *logrus.Entry {
+func (dao *DBDAO) Logger() log.Logger {
 	return dao.logger
 }
 
+func (dao *DBDAO) Context() context.Context {
+	return dao.ctx
+}
+
 func (dao *DBDAO) Exec(query string, args ...interface{}) (sql.Result, error) {
-	return dao.sqlxer.Exec(query, args...)
+	return dao.sqlxer.ExecContext(dao.ctx, query, args...)
 }
 
 func (dao *DBDAO) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
@@ -79,7 +90,7 @@ func (dao *DBDAO) ExecContext(ctx context.Context, query string, args ...interfa
 }
 
 func (dao *DBDAO) Get(dest interface{}, query string, args ...interface{}) error {
-	return dao.sqlxer.Get(dest, query, args...)
+	return dao.sqlxer.GetContext(dao.ctx, dest, query, args...)
 }
 
 func (dao *DBDAO) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
@@ -87,7 +98,7 @@ func (dao *DBDAO) GetContext(ctx context.Context, dest interface{}, query string
 }
 
 func (dao *DBDAO) NamedExec(query string, arg interface{}) (sql.Result, error) {
-	return dao.sqlxer.NamedExec(query, arg)
+	return dao.sqlxer.NamedExecContext(dao.ctx, query, arg)
 }
 
 func (dao *DBDAO) NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error) {
@@ -95,11 +106,11 @@ func (dao *DBDAO) NamedExecContext(ctx context.Context, query string, arg interf
 }
 
 func (dao *DBDAO) NamedQuery(query string, arg interface{}) (*sqlx.Rows, error) {
-	return dao.sqlxer.NamedQuery(query, arg)
+	return dao.sqlxer.NamedQueryContext(dao.ctx, query, arg)
 }
 
 func (dao *DBDAO) PrepareNamed(query string) (*sqlx.NamedStmt, error) {
-	return dao.sqlxer.PrepareNamed(query)
+	return dao.sqlxer.PrepareNamedContext(dao.ctx, query)
 }
 
 func (dao *DBDAO) PrepareNamedContext(ctx context.Context, query string) (*sqlx.NamedStmt, error) {
@@ -107,7 +118,7 @@ func (dao *DBDAO) PrepareNamedContext(ctx context.Context, query string) (*sqlx.
 }
 
 func (dao *DBDAO) Preparex(query string) (*sqlx.Stmt, error) {
-	return dao.sqlxer.Preparex(query)
+	return dao.sqlxer.PreparexContext(dao.ctx, query)
 }
 
 func (dao *DBDAO) PreparexContext(ctx context.Context, query string) (*sqlx.Stmt, error) {
@@ -119,7 +130,7 @@ func (dao *DBDAO) Rebind(query string) string {
 }
 
 func (dao *DBDAO) Select(dest interface{}, query string, args ...interface{}) error {
-	return dao.sqlxer.Select(dest, query, args...)
+	return dao.sqlxer.SelectContext(dao.ctx, dest, query, args...)
 }
 
 func (dao *DBDAO) SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
@@ -127,13 +138,19 @@ func (dao *DBDAO) SelectContext(ctx context.Context, dest interface{}, query str
 }
 
 func (dao *DBDAO) Unsafe() DAO {
+	logger := dao.logger.WithField("repo-unsafe", true)
+	newCtx := context.WithValue(dao.ctx, "logger", logger)
+	logger.Info("Unsafe DBDAO created")
 	return &DBDAO{
 		dao.sqlxer.Unsafe(),
-		dao.logger.WithField("repo-unsafe", true),
+		newCtx,
+		logger,
 	}
 }
 
-func NewTXDAO(db *sqlx.DB, logger *logrus.Entry) (*TxDAO, error) {
+func NewTXDAO(db *sqlx.DB, ctx context.Context) (*TxDAO, error) {
+	logger := ctx.Value("logger").(log.Logger)
+
 	if db == nil {
 		logger.Fatal("db parameter not provided to NewTXDAO!")
 	}
@@ -142,30 +159,36 @@ func NewTXDAO(db *sqlx.DB, logger *logrus.Entry) (*TxDAO, error) {
 		logger.Fatal("logger parameter not provided to NewTXDAO!")
 	}
 
-	log := logger.WithFields(logrus.Fields{
+	txLogger := logger.WithFields(logrus.Fields{
 		"repo-dao-id": getNextDaoId(),
 	})
 
 	tx, err := db.Beginx()
 	if err != nil {
-		log.WithField("repo-dao-type", "tx").WithError(err).Error("Error beginning transaction")
+		txLogger.WithField("repo-dao-type", "tx").WithError(err).Error("Error beginning transaction")
 		return nil, err
 	}
 
-	log.WithField("repo-dao-type", "tx").Info("DAO created")
+	txLogger.WithField("repo-dao-type", "tx").Info("TXDAO created")
+	txCtx := context.WithValue(ctx, "logger", txLogger)
 
 	return &TxDAO{
 		tx,
-		log,
+		txCtx,
+		txLogger,
 	}, nil
 }
 
-func (dao *TxDAO) Logger() *logrus.Entry {
+func (dao *TxDAO) Logger() log.Logger {
 	return dao.logger
 }
 
+func (dao *TxDAO) Context() context.Context {
+	return dao.ctx
+}
+
 func (dao *TxDAO) Exec(query string, args ...interface{}) (sql.Result, error) {
-	return dao.sqlxer.Exec(query, args...)
+	return dao.sqlxer.ExecContext(dao.ctx, query, args...)
 }
 
 func (dao *TxDAO) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
@@ -173,7 +196,7 @@ func (dao *TxDAO) ExecContext(ctx context.Context, query string, args ...interfa
 }
 
 func (dao *TxDAO) Get(dest interface{}, query string, args ...interface{}) error {
-	return dao.sqlxer.Get(dest, query, args...)
+	return dao.sqlxer.GetContext(dao.ctx, dest, query, args...)
 }
 
 func (dao *TxDAO) GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
@@ -181,7 +204,7 @@ func (dao *TxDAO) GetContext(ctx context.Context, dest interface{}, query string
 }
 
 func (dao *TxDAO) NamedExec(query string, arg interface{}) (sql.Result, error) {
-	return dao.sqlxer.NamedExec(query, arg)
+	return dao.sqlxer.NamedExecContext(dao.ctx, query, arg)
 }
 
 func (dao *TxDAO) NamedExecContext(ctx context.Context, query string, arg interface{}) (sql.Result, error) {
@@ -193,7 +216,7 @@ func (dao *TxDAO) NamedQuery(query string, arg interface{}) (*sqlx.Rows, error) 
 }
 
 func (dao *TxDAO) PrepareNamed(query string) (*sqlx.NamedStmt, error) {
-	return dao.sqlxer.PrepareNamed(query)
+	return dao.sqlxer.PrepareNamedContext(dao.ctx, query)
 }
 
 func (dao *TxDAO) PrepareNamedContext(ctx context.Context, query string) (*sqlx.NamedStmt, error) {
@@ -201,7 +224,7 @@ func (dao *TxDAO) PrepareNamedContext(ctx context.Context, query string) (*sqlx.
 }
 
 func (dao *TxDAO) Preparex(query string) (*sqlx.Stmt, error) {
-	return dao.sqlxer.Preparex(query)
+	return dao.sqlxer.PreparexContext(dao.ctx, query)
 }
 
 func (dao *TxDAO) PreparexContext(ctx context.Context, query string) (*sqlx.Stmt, error) {
@@ -213,7 +236,7 @@ func (dao *TxDAO) Rebind(query string) string {
 }
 
 func (dao *TxDAO) Select(dest interface{}, query string, args ...interface{}) error {
-	return dao.sqlxer.Select(dest, query, args...)
+	return dao.sqlxer.SelectContext(dao.ctx, dest, query, args...)
 }
 
 func (dao *TxDAO) SelectContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error {
@@ -221,8 +244,12 @@ func (dao *TxDAO) SelectContext(ctx context.Context, dest interface{}, query str
 }
 
 func (dao *TxDAO) Unsafe() DAO {
+	logger := dao.logger.WithField("repo-unsafe", true)
+	newCtx := context.WithValue(dao.ctx, "logger", logger)
+	logger.Info("Unsafe TxDAO created")
 	return &TxDAO{
 		dao.sqlxer.Unsafe(),
-		dao.logger.WithField("repo-unsafe", true),
+		newCtx,
+		logger,
 	}
 }

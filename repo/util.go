@@ -1,13 +1,17 @@
 package repo
 
-import "github.com/sirupsen/logrus"
+import (
+	"context"
+	"github.com/sjohna/go-server-common/log"
+)
 
-func RepoFunctionLogger(log *logrus.Entry, repoFunction string) *logrus.Entry {
-	log = log.WithField("repo-function", repoFunction)
-	log.Info("Repo called")
-	return log
+func RepoFunctionContext(ctx context.Context, repoFunction string) (repoContext context.Context, logger log.Logger) {
+	logger = ctx.Value("logger").(log.Logger).WithField("repo-function", repoFunction)
+	logger.Info("Repo function called")
+	repoContext = context.WithValue(ctx, "logger", logger)
+	return
 }
 
-func LogRepoReturn(log *logrus.Entry) {
-	log.Info("Repo returned")
+func LogRepoReturn(logger log.Logger) {
+	logger.Trace("Repo function returned")
 }

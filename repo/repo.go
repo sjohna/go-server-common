@@ -1,20 +1,21 @@
 package repo
 
 import (
+	"context"
 	"github.com/jmoiron/sqlx"
-	"github.com/sirupsen/logrus"
 )
 
 type Repo struct {
 	DB *sqlx.DB
 }
 
-func (repo *Repo) NonTx(logger *logrus.Entry) *DBDAO {
-	return NewDBDAO(repo.DB, logger)
+func (repo *Repo) NonTx(ctx context.Context) *DBDAO {
+	return NewDBDAO(repo.DB, ctx)
 }
 
-func (repo *Repo) SerializableTx(logger *logrus.Entry, transactionFunc func(*TxDAO) error) error {
-	dao, err := NewTXDAO(repo.DB, logger)
+func (repo *Repo) SerializableTx(ctx context.Context, transactionFunc func(*TxDAO) error) error {
+	dao, err := NewTXDAO(repo.DB, ctx)
+	logger := dao.Logger()
 	if err != nil {
 		logger.WithError(err).Error("Error creating TxDAO in SerializableTx")
 		return err

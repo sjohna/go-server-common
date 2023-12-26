@@ -1,13 +1,17 @@
 package service
 
-import "github.com/sirupsen/logrus"
+import (
+	"context"
+	"github.com/sjohna/go-server-common/log"
+)
 
-func ServiceFunctionLogger(log *logrus.Entry, serviceFunction string) *logrus.Entry {
-	log = log.WithField("service-function", serviceFunction)
-	log.Info("Service called")
-	return log
+func ServiceFunctionContext(ctx context.Context, serviceFunction string) (serviceContext context.Context, logger log.Logger) {
+	logger = ctx.Value("logger").(log.Logger).WithField("service-function", serviceFunction)
+	logger.Info("Service function called")
+	serviceContext = context.WithValue(ctx, "logger", logger)
+	return
 }
 
-func LogServiceReturn(log *logrus.Entry) {
-	log.Info("Service returned")
+func LogServiceReturn(logger log.Logger) {
+	logger.Trace("Service function returned")
 }
