@@ -7,7 +7,7 @@ import (
 
 func RepoFunctionContext(ctx context.Context, repoFunction string) (repoContext context.Context, logger log.Logger) {
 	logger = ctx.Value("logger").(log.Logger).WithField("repo-function", repoFunction)
-	logger.Info("Repo function called")
+	logger.Debug("Repo function called")
 	repoContext = context.WithValue(ctx, "logger", logger)
 	return
 }

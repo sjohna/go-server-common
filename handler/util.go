@@ -10,7 +10,7 @@ import (
 
 func HandlerContext(r *http.Request, handler string) (context.Context, log.Logger) {
 	logger := r.Context().Value("logger").(log.Logger).WithField("handler", handler)
-	logger.Info("Handler called")
+	logger.Debug("Handler called")
 	ctx := context.WithValue(r.Context(), "logger", logger)
 	return ctx, logger
 }
