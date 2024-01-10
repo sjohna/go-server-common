@@ -5,10 +5,13 @@ import (
 	"io"
 	"os"
 	"path"
+	"time"
 )
 import "gopkg.in/natefinch/lumberjack.v2"
 
 func GetApplicationLoggers(logDirectory string, applicationName string) (logger Logger, configLogger Logger) {
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+
 	logger = NewMultiplexLogger([]zerolog.Logger{
 		newZeroLogger(path.Join(logDirectory, applicationName+"_ERROR.log"), zerolog.ErrorLevel),
 		newZeroLogger(path.Join(logDirectory, applicationName+"_WARN.log"), zerolog.WarnLevel),
