@@ -10,7 +10,7 @@ import (
 
 func HandlerContext(r *http.Request, handler string) (context.Context, log.Logger) {
 	logger := r.Context().Value("logger").(log.Logger).WithField("handler", handler)
-	logger.Debug("Handler called")
+	logger.Trace("Handler called")
 	ctx := context.WithValue(r.Context(), "logger", logger)
 	return ctx, logger
 }
@@ -46,11 +46,13 @@ func RespondError(logger log.Logger, w http.ResponseWriter, err error, httpRespo
 }
 
 func RespondInternalServerError(logger log.Logger, w http.ResponseWriter, err error) {
-	RespondError(logger, w, err, 500)
+	logger.WithError(err).WithField("httpResponseCode", http.StatusInternalServerError).Error("Handler RespondInternalServerError")
+	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
 func RespondClientError(logger log.Logger, w http.ResponseWriter, err error) {
-	RespondError(logger, w, err, 400)
+	logger.WithError(err).WithField("httpResponseCode", http.StatusBadRequest).Warn("Handler RespondClientError")
+	http.Error(w, err.Error(), http.StatusBadRequest)
 }
 
 func RespondJSON(logger log.Logger, w http.ResponseWriter, value interface{}) {
@@ -58,7 +60,8 @@ func RespondJSON(logger log.Logger, w http.ResponseWriter, value interface{}) {
 
 	jsonResp, err := json.Marshal(value)
 	if err != nil {
-		RespondError(logger, w, err, 500)
+		logger.WithError(err).Error("Error marshalling response")
+		RespondInternalServerError(logger, w, err)
 		return
 	}
 
@@ -66,6 +69,6 @@ func RespondJSON(logger log.Logger, w http.ResponseWriter, value interface{}) {
 	if err != nil {
 		logger.WithError(err).Error("Error writing response")
 	} else {
-		logger.WithField("responseBytes", written).Info("Respond success")
+		logger.WithField("responseBytes", written).Debug("Respond success")
 	}
 }

@@ -7,7 +7,7 @@ import (
 
 func ServiceFunctionContext(ctx context.Context, serviceFunction string) (serviceContext context.Context, logger log.Logger) {
 	logger = ctx.Value("logger").(log.Logger).WithField("service-function", serviceFunction)
-	logger.Debug("Service function called")
+	logger.Trace("Service function called")
 	serviceContext = context.WithValue(ctx, "logger", logger)
 	return
 }
