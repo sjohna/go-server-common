@@ -51,19 +51,21 @@ func getNextDaoId() int64 {
 
 func NewDBDAO(db *sqlx.DB, ctx context.Context) *DBDAO {
 	logger := ctx.Value("logger").(log.Logger)
-	if db == nil {
-		logger.Fatal("db parameter not provided to NewDBDAO!")
-	}
 
 	if logger == nil {
-		logger.Fatal("logger parameter not provided to NewDBDAO!")
+		panic("logger not in context provided to NewDBDAO!")
+	}
+
+	if db == nil {
+		logger.Panic("db parameter not provided to NewDBDAO!")
+		panic("db parameter not provided to NewDBDAO!")
 	}
 
 	DAOLogger := logger.WithFields(logrus.Fields{
 		"repo-dao-id": getNextDaoId(),
 	})
 
-	DAOLogger.WithField("repo-dao-type", "non-tx").Info("DAO created")
+	DAOLogger.WithField("repo-dao-type", "non-tx").Debug("DAO created")
 	DAOCtx := context.WithValue(ctx, "logger", DAOLogger)
 
 	return &DBDAO{
@@ -151,12 +153,13 @@ func (dao *DBDAO) Unsafe() DAO {
 func NewTXDAO(db *sqlx.DB, ctx context.Context) (*TxDAO, error) {
 	logger := ctx.Value("logger").(log.Logger)
 
-	if db == nil {
-		logger.Fatal("db parameter not provided to NewTXDAO!")
+	if logger == nil {
+		panic("logger parameter not provided to NewTXDAO!")
 	}
 
-	if logger == nil {
-		logger.Fatal("logger parameter not provided to NewTXDAO!")
+	if db == nil {
+		logger.Panic("db parameter not provided to NewTXDAO!")
+		panic("db parameter not provided to NewTXDAO!")
 	}
 
 	txLogger := logger.WithFields(logrus.Fields{
@@ -169,7 +172,7 @@ func NewTXDAO(db *sqlx.DB, ctx context.Context) (*TxDAO, error) {
 		return nil, err
 	}
 
-	txLogger.WithField("repo-dao-type", "tx").Info("TXDAO created")
+	txLogger.WithField("repo-dao-type", "tx").Debug("TXDAO created")
 	txCtx := context.WithValue(ctx, "logger", txLogger)
 
 	return &TxDAO{
