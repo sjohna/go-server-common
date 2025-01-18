@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"github.com/sjohna/go-server-common/handler"
+	"fmt"
+	"github.com/sjohna/go-server-common/errors"
 	"github.com/sjohna/go-server-common/log"
-	"github.com/sjohna/go-server-common/repo"
-	"github.com/sjohna/go-server-common/service"
 	"net/http"
+	"runtime"
+	"sync"
 )
 
 func main() {
@@ -22,32 +23,65 @@ func main() {
 
 	testContext := context.WithValue(context.Background(), "logger", logger)
 
-	testRequest, _ := http.NewRequestWithContext(testContext, "GET", "http://localhost:8080", nil)
+	http.NewRequestWithContext(testContext, "GET", "http://localhost:8080", nil)
 
-	TestHandlerFunction(testRequest)
+	testStackTrace()
+
+	err := testError()
+	logger.WithError(err).Error("something bad happened")
+
+	err2 := testErrorInGoRoutine()
+	logger.WithError(err2).Error("something else bad happened")
+
+	err3 := testQueryError()
+	logger.WithError(err3).Error("something bad happened")
 }
 
-func TestHandlerFunction(req *http.Request) {
-	handlerContext, logger := handler.HandlerContext(req, "TestHandlerFunction")
-	defer handler.LogHandlerReturn(logger)
+func testStackTrace() {
+	pcs := make([]uintptr, 100)
 
-	logger.Info("In TestHandlerFunction")
+	callers := runtime.Callers(1, pcs)
 
-	TestServiceFunction(handlerContext)
+	fmt.Printf("caller count: %d\n", callers)
+
+	for i := 0; i < callers; i++ {
+		fmt.Println(pcs[i])
+	}
+
+	frames := runtime.CallersFrames(pcs)
+
+	for {
+		frame, more := frames.Next()
+		fmt.Printf("\t%s:%d %s\n", frame.File, frame.Line, frame.Function)
+
+		if !more {
+			break
+		}
+	}
 }
 
-func TestServiceFunction(ctx context.Context) {
-	serviceContext, logger := service.ServiceFunctionContext(ctx, "TestServiceFunction")
-	defer service.LogServiceReturn(logger)
+func testError() errors.Error {
+	err := fmt.Errorf("test error")
 
-	logger.Info("In TestServiceFunction")
-
-	TestRepoFunction(serviceContext)
+	return errors.Wrap(err, "wrapped error")
 }
 
-func TestRepoFunction(ctx context.Context) {
-	_, logger := repo.RepoFunctionContext(ctx, "TestRepoFunction")
-	defer repo.LogRepoReturn(logger)
+func testErrorInGoRoutine() errors.Error {
+	wg := sync.WaitGroup{}
 
-	logger.Info("In TestRepoFunction")
+	wg.Add(1)
+
+	var err errors.Error
+
+	go func() {
+		defer wg.Done()
+		err = errors.New("error from goroutine")
+	}()
+
+	wg.Wait()
+	return err
+}
+
+func testQueryError() errors.Error {
+	return errors.WrapQueryError(nil, "query error message", "SELECT * FROM some_table WHERE col = $1", "fred")
 }

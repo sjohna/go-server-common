@@ -13,19 +13,19 @@ func GetApplicationLoggers(logDirectory string, applicationName string) (logger 
 	zerolog.TimeFieldFormat = time.RFC3339Nano
 
 	logger = NewMultiplexLogger([]zerolog.Logger{
-		newZeroLogger(path.Join(logDirectory, applicationName+"_ERROR.log"), zerolog.ErrorLevel),
-		newZeroLogger(path.Join(logDirectory, applicationName+"_WARN.log"), zerolog.WarnLevel),
-		newZeroLogger(path.Join(logDirectory, applicationName+"_INFO.log"), zerolog.InfoLevel),
-		newZeroLogger(path.Join(logDirectory, applicationName+"_DEBUG.log"), zerolog.DebugLevel),
-		newZeroLoggerWithStandardOut(path.Join(logDirectory, applicationName+"_TRACE.log"), zerolog.TraceLevel),
+		newZeroLogger(path.Join(logDirectory, applicationName+"_ERROR.log"), zerolog.ErrorLevel).With().Stack().Logger(),
+		newZeroLogger(path.Join(logDirectory, applicationName+"_WARN.log"), zerolog.WarnLevel).With().Stack().Logger(),
+		newZeroLogger(path.Join(logDirectory, applicationName+"_INFO.log"), zerolog.InfoLevel).With().Stack().Logger(),
+		newZeroLogger(path.Join(logDirectory, applicationName+"_DEBUG.log"), zerolog.DebugLevel).With().Stack().Logger(),
+		newZeroLoggerWithStandardOut(path.Join(logDirectory, applicationName+"_TRACE.log"), zerolog.TraceLevel).With().Stack().Logger(),
 	})
 
 	configBaseLogger := NewMultiplexLogger([]zerolog.Logger{
-		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_ERROR.log"), zerolog.ErrorLevel),
-		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_WARN.log"), zerolog.WarnLevel),
-		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_INFO.log"), zerolog.InfoLevel),
-		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_DEBUG.log"), zerolog.DebugLevel),
-		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_TRACE.log"), zerolog.TraceLevel),
+		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_ERROR.log"), zerolog.ErrorLevel).With().Stack().Logger(),
+		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_WARN.log"), zerolog.WarnLevel).With().Stack().Logger(),
+		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_INFO.log"), zerolog.InfoLevel).With().Stack().Logger(),
+		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_DEBUG.log"), zerolog.DebugLevel).With().Stack().Logger(),
+		newZeroLogger(path.Join(logDirectory, applicationName+"_CONFIG_TRACE.log"), zerolog.TraceLevel).With().Stack().Logger(),
 	})
 
 	configLogger = NewCompoundLogger([]Logger{configBaseLogger, logger})

@@ -1,6 +1,9 @@
 package log
 
-import "github.com/rs/zerolog"
+import (
+	"github.com/rs/zerolog"
+	"github.com/sjohna/go-server-common/errors"
+)
 
 type MultiplexLogger struct {
 	loggers []zerolog.Logger
@@ -28,10 +31,26 @@ func (l MultiplexLogger) WithFields(fields map[string]interface{}) Logger {
 	return NewMultiplexLogger(newLoggers)
 }
 
-func (l MultiplexLogger) WithError(err error) Logger {
+func (l MultiplexLogger) WithError(err errors.Error) Logger {
 	newLoggers := make([]zerolog.Logger, len(l.loggers))
 	for i, logger := range l.loggers {
 		newLoggers[i] = logger.With().Err(err).Logger()
+
+		if queryErr, isQueryErr := err.(*errors.QueryError); isQueryErr {
+			newLoggers[i] = logger.With().Fields(map[string]interface{}{
+				"origin":     errors.OriginString(queryErr.Origin),
+				"errorStack": queryErr.StackTrace,
+				"innerError": queryErr.Inner,
+				"query":      queryErr.Query,
+				"queryArgs":  queryErr.Args,
+			}).Logger()
+		} else if appErr, isAppErr := err.(*errors.ApplicationError); isAppErr {
+			newLoggers[i] = logger.With().Fields(map[string]interface{}{
+				"origin":     errors.OriginString(appErr.Origin),
+				"errorStack": appErr.StackTrace,
+				"innerError": appErr.Inner,
+			}).Logger()
+		}
 	}
 	return NewMultiplexLogger(newLoggers)
 }

@@ -1,5 +1,7 @@
 package log
 
+import "github.com/sjohna/go-server-common/errors"
+
 type CompoundLogger struct {
 	loggers []Logger
 }
@@ -26,7 +28,7 @@ func (l CompoundLogger) WithFields(fields map[string]interface{}) Logger {
 	return NewCompoundLogger(newLoggers)
 }
 
-func (l CompoundLogger) WithError(err error) Logger {
+func (l CompoundLogger) WithError(err errors.Error) Logger {
 	newLoggers := make([]Logger, len(l.loggers))
 	for i, logger := range l.loggers {
 		newLoggers[i] = logger.WithError(err)

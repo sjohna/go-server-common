@@ -1,9 +1,11 @@
 package log
 
+import "github.com/sjohna/go-server-common/errors"
+
 type Logger interface {
 	WithField(key string, value interface{}) Logger
 	WithFields(fields map[string]interface{}) Logger
-	WithError(err error) Logger
+	WithError(err errors.Error) Logger
 	Trace(msg string)
 	Tracef(format string, v ...interface{})
 	Debug(msg string)

@@ -3,6 +3,8 @@ package repo
 import (
 	"context"
 	"github.com/jmoiron/sqlx"
+	"github.com/sjohna/go-server-common/errors"
+	"github.com/sjohna/go-server-common/log"
 )
 
 type Repo struct {
@@ -13,40 +15,40 @@ func (repo *Repo) NonTx(ctx context.Context) *DBDAO {
 	return NewDBDAO(repo.DB, ctx)
 }
 
-func (repo *Repo) SerializableTx(ctx context.Context, transactionFunc func(*TxDAO) error) error {
+func (repo *Repo) SerializableTx(ctx context.Context, transactionFunc func(*TxDAO) errors.Error) errors.Error {
 	dao, err := NewTXDAO(repo.DB, ctx)
-	logger := dao.Logger()
 	if err != nil {
-		logger.WithError(err).Error("Error creating TxDAO in SerializableTx")
+
 		return err
 	}
 
 	_, err = dao.Exec("set transaction isolation level serializable")
 	if err != nil {
-		dao.Logger().WithError(err).Error("Failed to set transaction isolation level serializable")
-		if rollbackErr := dao.sqlxer.Rollback(); err != nil {
-			dao.Logger().WithField("seriousError", true).WithError(rollbackErr).Error("Failed to roll back transaction after failing to set isolation level serializable!!!")
+		if rollbackErr := dao.sqlxer.Rollback(); rollbackErr != nil {
+			log.Ctx(ctx).WithError(errors.WrapDBError(rollbackErr, "failed to rollback transaction")).Error("Failed to rollback transaction!!!!")
 		}
 		return err
 	}
 
 	err = transactionFunc(dao)
 	if err == nil {
-		if err = dao.sqlxer.Commit(); err != nil {
-			dao.Logger().WithError(err).Error("Failed to commit transaction!")
+		commitErr := dao.sqlxer.Commit()
+		if commitErr != nil {
+			wrappedCommitErr := errors.WrapDBError(commitErr, "failed to commit transaction")
 
-			if rollbackError := dao.sqlxer.Rollback(); err != nil {
-				dao.Logger().WithField("seriousError", true).WithError(rollbackError).Error("Failled to roll back transaction after failing to commit!!!")
+			rollbackError := dao.sqlxer.Rollback()
+			if rollbackError != nil {
+				log.Ctx(dao.ctx).WithError(errors.WrapDBError(rollbackError, "failed to rollback transaction")).Error("Failed to rollback transaction after failing to commit!!!!")
 			}
 
-			return err
+			return wrappedCommitErr
 		}
 	} else {
-		if err := dao.sqlxer.Rollback(); err != nil {
-			dao.Logger().WithError(err).Error("Failled to roll back transaction.")
-			return err
+		rollbackError := dao.sqlxer.Rollback()
+		if rollbackError != nil {
+			log.Ctx(dao.ctx).WithError(errors.WrapDBError(rollbackError, "failed to rollback transaction")).Error("Failed to rollback transaction that returned an error!!!!")
 		}
 	}
 
-	return nil
+	return err
 }
